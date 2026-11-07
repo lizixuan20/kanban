@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的看板</title>
+<script src="vendor/echarts.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root{--bg:#0e1117;--panel:#161b22;--line:#232a35;--txt:#e6edf3;--dim:#8b949e;
+        --up:#e5484d;--dn:#30a46c;--acc:#4c8dff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  header{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;
+         align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel)}
+  h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.5px}
+  .qt{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+  .qt .px{font-size:22px;font-weight:700}
+  .qt .chg{font-size:13px}
+  .up{color:var(--up)} .dn{color:var(--dn)} .flat{color:var(--dim)}
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tabs button{background:transparent;border:1px solid var(--line);color:var(--dim);
+     padding:5px 12px;border-radius:14px;cursor:pointer;font-size:13px}
+  .tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  .bar{padding:8px 14px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .bar button{background:var(--panel);border:1px solid var(--line);color:var(--dim);
+     padding:4px 11px;border-radius:6px;cursor:pointer;font-size:12px}
+  .bar button.on{color:#fff;border-color:var(--acc);background:#1c2433}
+  #chart{width:100%;height:calc(100vh - 108px);min-height:520px}
+  .meta{color:var(--dim);font-size:12px;margin-left:auto;align-self:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>我的看板</h1>
+  <div class="qt"><span class="px" id="px">--</span><span class="chg" id="chg"></span></div>
+  <div class="tabs" id="tabs"></div>
+</header>
+<div class="bar">
+  <button data-i="ma" class="on">均线 MA</button>
+  <button data-i="boll" class="on">布林 BOLL</button>
+  <button data-i="macd" class="on">MACD</button>
+  <button data-i="kdj">KDJ</button>
+  <span class="meta" id="meta"></span>
+</div>
+<div id="chart"></div>
+<script>
+const D = window.MARKET_DATA;
+const SYMS = [["sh510300","沪深300ETF"],["sz159530","机器人ETF"],["sh000001","上证指数"]];
+let cur = "sh510300";
+const show = {ma:true, boll:true, macd:true, kdj:false};
+
+const tabs = document.getElementById("tabs");
+SYMS.forEach(([s,n])=>{
+  const b=document.createElement("button");
+  b.textContent=n; b.dataset.s=s;
+  b.onclick=()=>{cur=s;paint();realtime();};
+  tabs.appendChild(b);
+});
+document.querySelectorAll(".bar button").forEach(b=>{
+  b.onclick=()=>{show[b.dataset.i]=!show[b.dataset.i];b.classList.toggle("on");paint();};
+});
+
+const chart = echarts.init(document.getElementById("chart"), null, {renderer:"canvas"});
+addEventListener("resize", ()=>chart.resize());
+
+function fmt(v,d=3){return v==null||isNaN(v)?"-":Number(v).toFixed(d);}
+
+function paint(){
+  const S = D.symbols[cur];
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.s===cur));
+  document.getElementById("meta").textContent = "数据 " + D.updated + " · 日线前复权";
+  const dates=S.dates, ind=S.ind;
+  const series=[]; const legend=[];
+
+  series.push({name:"K线",type:"candlestick",data:S.ohlc,
+    itemStyle:{color:"#e5484d",color0:"#30a46c",borderColor:"#e5484d",borderColor0:"#30a46c"},
+    xAxisIndex:0,yAxisIndex:0});
+
+  if(show.ma){
+    [["ma5","MA5","#f5c542"],["ma10","MA10","#4c8dff"],["ma20","MA20","#c76bff"],["ma60","MA60","#7d8590"]]
+    .forEach(([k,n,c])=>{
+      legend.push(n);
+      series.push({name:n,type:"line",data:ind[k],smooth:true,symbol:"none",
+        lineStyle:{width:1,color:c},xAxisIndex:0,yAxisIndex:0});
+    });
+  }
+  if(show.boll){
+    [["boll_up","BOLL上轨","#e5484d"],["boll_mid","BOLL中轨","#c9a227"],["boll_dn","BOLL下轨","#30a46c"]]
+    .forEach(([k,n,c])=>{
+      legend.push(n);
+      series.push({name:n,type:"line",data:ind[k],symbol:"none",
+        lineStyle:{width:1,type:"dashed",color:c},xAxisIndex:0,yAxisIndex:0});
+    });
+  }
+
+  series.push({name:"成交量",type:"bar",data:S.volume,xAxisIndex:1,yAxisIndex:1,
+    itemStyle:{color:(p)=>S.ohlc[p.dataIndex][1]>=S.ohlc[p.dataIndex][0]?"#e5484d99":"#30a46c99"}});
+
+  if(show.macd){
+    legend.push("MACD","DIF","DEA");
+    series.push(
+      {name:"MACD",type:"bar",data:ind.macd,xAxisIndex:2,yAxisIndex:2,
+       itemStyle:{color:(p)=>p.value>=0?"#e5484d":"#30a46c"}},
+      {name:"DIF",type:"line",data:ind.dif,symbol:"none",lineStyle:{width:1,color:"#f5c542"},xAxisIndex:2,yAxisIndex:2},
+      {name:"DEA",type:"line",data:ind.dea,symbol:"none",lineStyle:{width:1,color:"#4c8dff"},xAxisIndex:2,yAxisIndex:2});
+  } else if(show.kdj){
+    legend.push("K","D","J");
+    series.push(
+      {name:"K",type:"line",data:ind.k,symbol:"none",lineStyle:{width:1,color:"#f5c542"},xAxisIndex:2,yAxisIndex:2},
+      {name:"D",type:"line",data:ind.d,symbol:"none",lineStyle:{width:1,color:"#4c8dff"},xAxisIndex:2,yAxisIndex:2},
+      {name:"J",type:"line",data:ind.j,symbol:"none",lineStyle:{width:1,color:"#c76bff"},xAxisIndex:2,yAxisIndex:2});
+  }
+
+  chart.setOption({
+    animation:false,
+    backgroundColor:"transparent",
+    legend:{data:legend,textStyle:{color:"#8b949e",fontSize:11},top:2,type:"scroll"},
+    axisPointer:{link:[{xAxisIndex:"all"}],label:{backgroundColor:"#333"}},
+    tooltip:{trigger:"axis",axisPointer:{type:"cross"},
+      backgroundColor:"rgba(20,24,32,.94)",borderColor:"#232a35",
+      textStyle:{color:"#e6edf3",fontSize:12}},
+    grid:[{left:56,right:16,top:32,height:"46%"},
+          {left:56,right:16,top:"56%",height:"10%"},
+          {left:56,right:16,top:"70%",height:"18%"}],
+    xAxis:[0,1,2].map(i=>({type:"category",data:dates,gridIndex:i,boundaryGap:true,
+        axisLine:{lineStyle:{color:"#232a35"}},axisLabel:{show:i===2,color:"#8b949e",fontSize:10},
+        axisTick:{show:false},splitLine:{show:false}})),
+    yAxis:[{gridIndex:0,scale:true,position:"left",axisLabel:{color:"#8b949e",fontSize:10},
+            splitLine:{lineStyle:{color:"#1c222c"}},axisLine:{show:false}},
+           {gridIndex:1,scale:true,axisLabel:{show:false},splitLine:{show:false},axisLine:{show:false}},
+           {gridIndex:2,scale:true,axisLabel:{color:"#8b949e",fontSize:10},
+            splitLine:{lineStyle:{color:"#1c222c"}},axisLine:{show:false}}],
+    dataZoom:[{type:"inside",xAxisIndex:[0,1,2],start:65,end:100},
+              {type:"slider",xAxisIndex:[0,1,2],bottom:4,height:16,
+               borderColor:"#232a35",fillerColor:"rgba(76,141,255,.12)",
+               textStyle:{color:"#8b949e",fontSize:10}}],
+    series
+  }, true);
+}
+
+/* ---------- 实时报价（跨域 script 注入，不需要服务器） ---------- */
+const snap = {};
+SYMS.forEach(([s])=>snap[s]={px:null,prev:null,chg:null,pct:null,name:""});
+
+function parseQuote(txt){
+  if(!txt) return null;
+  const f = txt.split("~");
+  return {name:f[1], px:+f[3], prev:+f[4], open:+f[5], chg:+f[31], pct:+f[32]};
+}
+function loadQuote(){
+  const old=document.getElementById("rt"); if(old) old.remove();
+  const s=document.createElement("script");
+  s.id="rt"; s.src="https://qt.gtimg.cn/q="+SYMS.map(x=>x[0]).join(",")+"&_="+Date.now();
+  s.onload=()=>{ SYMS.forEach(([sym])=>snap[sym]=parseQuote(window["v_"+sym])||snap[sym]); paintQuote(); };
+  s.onerror=()=>{};
+  document.body.appendChild(s);
+}
+function paintQuote(){
+  const q = snap[cur]; if(!q||!q.px) return;
+  const px=document.getElementById("px"), chg=document.getElementById("chg");
+  px.textContent = fmt(q.px); chg.textContent = (q.chg>0?"+":"")+fmt(q.chg)+"  "+(q.pct>0?"+":"")+fmt(q.pct,2)+"%";
+  const cls = q.chg>0?"up":q.chg<0?"dn":"flat";
+  px.className="px "+cls; chg.className="chg "+cls;
+}
+paint(); loadQuote();
+setInterval(loadQuote, 5000);
+</script>
+</body>
+</html>
