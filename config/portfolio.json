@@ -1,0 +1,23 @@
+{
+  "updated": "2026-11-06",
+  "holdings": [
+    {"code": "510300", "symbol": "sh510300", "name": "沪深300ETF华泰柏瑞", "shares": 200, "cost": 4.7440},
+    {"code": "159530", "symbol": "sz159530", "name": "机器人ETF易方达", "shares": 400, "cost": 1.3325}
+  ],
+  "watchlist": [
+    {"code": "510300", "symbol": "sh510300", "name": "沪深300ETF华泰柏瑞", "tag": "宽基"},
+    {"code": "159530", "symbol": "sz159530", "name": "机器人ETF易方达", "tag": "主题"},
+    {"code": "510500", "symbol": "sh510500", "name": "中证500ETF南方", "tag": "宽基"},
+    {"code": "563360", "symbol": "sh563360", "name": "A500ETF华泰柏瑞", "tag": "宽基"},
+    {"code": "518880", "symbol": "sh518880", "name": "黄金ETF华安", "tag": "商品"},
+    {"code": "512890", "symbol": "sh512890", "name": "红利低波ETF华泰柏瑞", "tag": "红利"},
+    {"code": "510880", "symbol": "sh510880", "name": "红利ETF华泰柏瑞", "tag": "红利"},
+    {"code": "000021", "symbol": "sz000021", "name": "深科技", "tag": "科技"},
+    {"code": "000938", "symbol": "sz000938", "name": "紫光股份", "tag": "算力"},
+    {"code": "300499", "symbol": "sz300499", "name": "高澜股份", "tag": "液冷"},
+    {"code": "688825", "symbol": "sh688825", "name": "长鑫科技", "tag": "存储"},
+    {"code": "688836", "symbol": "sh688836", "name": "宇树科技-W", "tag": "机器人"},
+    {"code": "688469", "symbol": "sh688469", "name": "芯联集成-U", "tag": "半导体"},
+    {"code": "600999", "symbol": "sh600999", "name": "招商证券", "tag": "券商"}
+  ]
+}
