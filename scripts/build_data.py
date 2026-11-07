@@ -1,10 +1,26 @@
 # -*- coding: utf-8 -*-
-"""拉日线 + 算指标 -> web/data.js（可被 file:// 直接加载）"""
-import json, urllib.request, datetime
+"""拉自选股日线 + 算指标 -> data.js"""
+import json, os, sys, urllib.request, datetime
 import pandas as pd
 
 UA = {"User-Agent": "Mozilla/5.0"}
-SYMS = {"sh510300": "沪深300ETF", "sz159530": "机器人ETF", "sh000001": "上证指数"}
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "web", "data.js")
+if not os.path.isabs(OUT):
+    OUT = os.path.join(os.getcwd(), OUT)
+
+def load_syms():
+    p = os.path.join(ROOT, "config", "portfolio.json")
+    syms = ["sh000001"]
+    names = {"sh000001": "上证指数"}
+    if os.path.exists(p):
+        cfg = json.load(open(p, encoding="utf-8"))
+        for it in cfg.get("watchlist", []):
+            if it["symbol"] not in syms:
+                syms.append(it["symbol"])
+            names[it["symbol"]] = it["name"]
+    return syms, names
 
 def kline(sym, n=300):
     u = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sym},day,,,{n},qfq"
@@ -16,8 +32,7 @@ def kline(sym, n=300):
         df[c] = pd.to_numeric(df[c], errors="coerce")
     return df.dropna().reset_index(drop=True)
 
-def ema(s, n):
-    return s.ewm(span=n, adjust=False).mean()
+def ema(s, n): return s.ewm(span=n, adjust=False).mean()
 
 def indicators(df):
     c, h, l = df["close"], df["high"], df["low"]
@@ -35,38 +50,30 @@ def indicators(df):
     return out
 
 def rnd(x):
-    if x is None: return None
-    try:
-        v = float(x)
-    except Exception:
-        return None
+    try: v = float(x)
+    except Exception: return None
     return None if v != v else round(v, 3)
 
+SYMS, NAMES = load_syms()
 result = {"updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "symbols": {}}
-for sym, name in SYMS.items():
+for sym in SYMS:
     try:
         df = kline(sym)
         ind = indicators(df)
         result["symbols"][sym] = {
-            "name": name,
+            "name": NAMES.get(sym, sym),
             "dates": df["date"].tolist(),
             "ohlc": [[round(o,3), round(cl,3), round(lo,3), round(hi,3)]
                      for o, cl, lo, hi in zip(df["open"], df["close"], df["low"], df["high"])],
             "volume": [int(v) for v in df["volume"]],
             "ind": {k: [rnd(v) for v in s.tolist()] for k, s in ind.items()},
         }
-        print(f"OK {sym} {name} rows={len(df)} last={df.iloc[-1]['date']} close={df.iloc[-1]['close']}")
+        print(f"OK   {sym} {NAMES.get(sym,''):12s} rows={len(df)} last={df.iloc[-1]['date']}")
     except Exception as e:
-        print(f"FAIL {sym} {type(e).__name__}: {str(e)[:80]}")
-
-import os, sys
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "..", "web", "data.js")
-if not os.path.isabs(OUT):
-    OUT = os.path.join(os.getcwd(), OUT)
+        print(f"FAIL {sym} {type(e).__name__}: {str(e)[:70]}")
 
 with open(OUT, "w", encoding="utf-8") as f:
     f.write("window.MARKET_DATA = ")
-    json.dump(result, f, ensure_ascii=False)
+    json.dump(result, f, ensure_ascii=False, separators=(",", ":"))
     f.write(";\n")
-print("saved web/data.js")
+print("saved", OUT, round(os.path.getsize(OUT)/1024,1), "KB")
