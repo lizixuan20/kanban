@@ -1,5 +1,5 @@
 /* 我的看板 · Service Worker */
-const CACHE = 'kanban-v1';
+const CACHE = 'kanban-v2';
 const ASSETS = ['./', './index.html', './manifest.json',
                 './vendor/echarts.min.js', './icons/icon-192.png', './icons/icon-512.png'];
 
@@ -17,6 +17,18 @@ self.addEventListener('fetch', e => {
   // 报价接口一律走网络，不缓存
   if (url.hostname.endsWith('gtimg.cn') || url.hostname.endsWith('sinajs.cn')) return;
   if (e.request.method !== 'GET') return;
+
+  // 页面导航：先网络（保证能拿到最新版本），断网才用缓存
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return r;
+      }).catch(() => caches.match(e.request).then(h => h || caches.match('./index.html')))
+    );
+    return;
+  }
 
   // 数据文件：先网络，失败用缓存
   if (url.pathname.endsWith('data.js')) {
